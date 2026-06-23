@@ -1,0 +1,675 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Visiting Card Scanner</title>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+<style>
+:root {
+    --bg: #0f172a;
+    --surface: rgba(15, 23, 42, 0.92);
+    --surface-strong: rgba(15, 23, 42, 1);
+    --text: #f8fafc;
+    --muted: #94a3b8;
+    --accent: #38bdf8;
+    --accent-strong: #0ea5e9;
+    --border: rgba(148, 163, 184, 0.25);
+    --shadow: 0 25px 60px rgba(15, 23, 42, 0.2);
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: Inter, Arial, sans-serif;
+}
+
+body {
+    min-height: 100vh;
+    background: radial-gradient(circle at 12% 12%, rgba(56, 189, 248, 0.24), transparent 16%),
+                radial-gradient(circle at 88% 10%, rgba(168, 85, 247, 0.22), transparent 14%),
+                radial-gradient(circle at 75% 85%, rgba(59, 130, 246, 0.12), transparent 18%),
+                linear-gradient(145deg, #020617 0%, #0b1a34 28%, #0f172a 55%, #07101d 100%);
+    background-attachment: fixed;
+    color: var(--text);
+    overflow-x: hidden;
+}
+
+.page-shell {
+    padding: 24px 18px 48px;
+    max-width: 1160px;
+    margin: 0 auto;
+}
+
+header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 18px;
+    padding: 24px;
+    border-radius: 20px;
+    background: rgba(15, 23, 42, 0.95);
+    border: 1px solid rgba(148, 163, 184, 0.12);
+    box-shadow: var(--shadow);
+}
+
+header .brand {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+
+header .brand img {
+    width: 56px;
+    height: 56px;
+    object-fit: contain;
+    border-radius: 14px;
+    background: rgba(255,255,255,0.08);
+    padding: 8px;
+}
+
+header h1 {
+    font-size: clamp(1.9rem, 3vw, 3rem);
+    letter-spacing: -0.04em;
+}
+
+header p {
+    max-width: 720px;
+    line-height: 1.65;
+    color: var(--muted);
+}
+
+nav {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    gap: 12px;
+    margin-top: 12px;
+}
+
+.nav-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+nav button {
+    border: 1px solid rgba(148, 163, 184, 0.18);
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--text);
+    padding: 10px 16px;
+    border-radius: 999px;
+    cursor: pointer;
+    transition: background 0.2s ease, transform 0.2s ease;
+}
+
+nav button:hover {
+    background: rgba(56, 189, 248, 0.22);
+    transform: translateY(-1px);
+}
+
+.main-card {
+    margin-top: 24px;
+    display: grid;
+    grid-template-columns: minmax(0, 1.3fr) 0.9fr;
+    gap: 24px;
+}
+
+.card-panel {
+    border-radius: 28px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow);
+    padding: 24px;
+    backdrop-filter: blur(18px);
+}
+
+.section-title {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 20px;
+}
+
+.section-title h2 {
+    font-size: 1.25rem;
+    letter-spacing: -0.03em;
+}
+
+.section-title small {
+    color: var(--muted);
+}
+
+.controls {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 14px;
+    align-items: center;
+    margin-bottom: 18px;
+}
+
+.controls input[type="file"] {
+    width: 100%;
+    color: var(--text);
+}
+
+.action-group {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+}
+
+button.action {
+    width: 100%;
+    padding: 14px 18px;
+    border-radius: 14px;
+    font-weight: 600;
+    border: none;
+    background: linear-gradient(135deg, #38bdf8, #0ea5e9);
+    color: #fff;
+    cursor: pointer;
+    transition: filter 0.2s ease, transform 0.2s ease;
+}
+
+button.action:hover {
+    filter: brightness(1.05);
+    transform: translateY(-1px);
+}
+
+button.secondary {
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(148, 163, 184, 0.18);
+}
+
+#status,
+#footerStatus {
+    display: block;
+    padding: 16px 18px;
+    border-radius: 16px;
+    margin-bottom: 18px;
+    line-height: 1.6;
+    border: 1px solid rgba(148, 163, 184, 0.12);
+}
+
+#status {
+    color: #22c55e;
+    background: rgba(34, 197, 94, 0.08);
+}
+
+#footerStatus {
+    background: rgba(15, 23, 42, 0.8);
+    color: var(--muted);
+}
+
+.preview {
+    display: grid;
+    gap: 14px;
+    justify-items: center;
+    margin-bottom: 20px;
+}
+
+.preview img {
+    width: 100%;
+    max-width: 540px;
+    border-radius: 22px;
+    border: 1px solid rgba(148, 163, 184, 0.18);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+}
+
+.filter-controls {
+    display: grid;
+    gap: 10px;
+    margin-top: 20px;
+}
+
+.filter-controls label {
+    display: grid;
+    gap: 8px;
+    color: var(--muted);
+    font-size: 0.95rem;
+}
+
+.filter-controls input,
+.filter-controls select,
+textarea {
+    width: 100%;
+    border-radius: 16px;
+    border: 1px solid rgba(148, 163, 184, 0.18);
+    background: rgba(15, 23, 42, 0.84);
+    color: var(--text);
+    padding: 12px 14px;
+    font: inherit;
+}
+
+textarea {
+    min-height: 240px;
+    resize: vertical;
+    line-height: 1.65;
+}
+
+.output-actions {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-top: 14px;
+}
+
+.output-actions button {
+    min-width: 120px;
+}
+
+.insights {
+    display: grid;
+    gap: 14px;
+    margin-top: 18px;
+    padding: 16px;
+    border-radius: 20px;
+    background: rgba(15, 23, 42, 0.8);
+    border: 1px solid rgba(148, 163, 184, 0.12);
+}
+
+.insight-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.insight-row strong {
+    color: #e2e8f0;
+}
+
+.translation-section {
+    margin-top: 24px;
+    padding-top: 20px;
+    border-top: 1px solid rgba(148, 163, 184, 0.12);
+}
+
+.translation-controls {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+.translation-controls select {
+    padding: 10px 12px;
+    border-radius: 12px;
+    border: 1px solid rgba(148, 163, 184, 0.18);
+    background: rgba(15, 23, 42, 0.84);
+    color: var(--text);
+    min-width: 150px;
+}
+
+#translatedText {
+    width: 100%;
+    min-height: 180px;
+    border-radius: 16px;
+    border: 1px solid rgba(148, 163, 184, 0.18);
+    background: rgba(15, 23, 42, 0.84);
+    color: var(--text);
+    padding: 12px 14px;
+    font: inherit;
+    resize: vertical;
+    line-height: 1.65;
+}
+
+@media (max-width: 900px) {
+    .main-card {
+        grid-template-columns: 1fr;
+    }
+}
+
+.designer-note {
+    margin-top: 20px;
+    text-align: center;
+    color: var(--muted);
+    font-size: 0.95rem;
+}
+</style>
+</head>
+<body>
+<div class="page-shell">
+    <header>
+        <div class="brand">
+            <img src="logo.jpeg" alt="App Logo">
+            <div>
+                <h1>Visiting Card Scanner</h1>
+                <p>Transform visiting card images into structured text with OCR and contact extraction.</p>
+            </div>
+        </div>
+        <nav>
+            <div class="nav-links">
+                <button type="button" onclick="showAim()">Aim</button>
+                <button type="button" onclick="showAbout()">About Us</button>
+                <button type="button" onclick="showContact()">Contact Us</button>
+            </div>
+        </nav>
+    </header>
+
+    <main class="main-card">
+        <section class="card-panel">
+            <div class="section-title">
+                <h2>Upload & Scan</h2>
+                <small>Advanced OCR settings and preview</small>
+            </div>
+
+            <div class="controls">
+                <input type="file" id="fileInput" accept=".jpg,.jpeg,.png">
+                <div class="action-group">
+                    <button class="action" onclick="scanCard()">Scan & Convert</button>
+                    <button class="action secondary" onclick="downloadText('txt')">Save Text</button>
+                    <button class="action secondary" onclick="downloadText('doc')">Save Word</button>
+                </div>
+            </div>
+
+            <div id="status">No card uploaded</div>
+
+            <div class="preview">
+                <img id="previewImage" src="" alt="Uploaded card preview" style="display:none;">
+            </div>
+
+            <div class="filter-controls">
+                <label>
+                    OCR Language
+                    <select id="languageSelect">
+                        <option value="eng">English</option>
+                        <option value="tel">Telugu</option>
+                        <option value="hin">Hindi</option>
+                        <option value="tam">Tamil</option>
+                    </select>
+                </label>
+            </div>
+        </section>
+
+        <section class="card-panel">
+            <div class="section-title">
+                <h2>OCR Output</h2>
+                <small>Copy, clear, and analyze content</small>
+            </div>
+
+            <textarea id="outputText" placeholder="OCR output will appear here..."></textarea>
+            <div class="output-actions">
+                <button class="action secondary" onclick="copyText()">Copy to Clipboard</button>
+                <button class="action secondary" onclick="clearOutput()">Clear Output</button>
+                <button class="action secondary" onclick="showInsights()">Parse Contact Info</button>
+                <button class="action secondary" onclick="saveContactInfo()">Save Contact Info</button>
+            </div>
+
+            <div class="insights" id="parsedInsights" style="display:none;">
+                <div class="insight-row"><strong>Phone:</strong> <span id="phoneValue">—</span></div>
+                <div class="insight-row"><strong>Email:</strong> <span id="emailValue">—</span></div>
+                <div class="insight-row"><strong>Website:</strong> <span id="websiteValue">—</span></div>
+                <div class="insight-row"><strong>Name / Company:</strong> <span id="nameValue">—</span></div>
+            </div>
+
+            <div class="translation-section">
+                <h3 style="margin-bottom: 16px; font-size: 1.1rem;">Translate Extracted Text</h3>
+                <div class="translation-controls">
+                    <label style="color: var(--muted); display: flex; align-items: center; gap: 8px;">
+                        Target Language:
+                        <select id="translateLanguage">
+                            <option value="te">Telugu</option>
+                            <option value="ta">Tamil</option>
+                            <option value="hi">Hindi</option>
+                            <option value="kn">Kannada</option>
+                            <option value="ml">Malayalam</option>
+                            <option value="mr">Marathi</option>
+                            <option value="gu">Gujarati</option>
+                            <option value="bn">Bengali</option>
+                            <option value="pa">Punjabi</option>
+                            <option value="or">Odia</option>
+                            <option value="as">Assamese</option>
+                            <option value="es">Spanish</option>
+                            <option value="fr">French</option>
+                            <option value="de">German</option>
+                            <option value="it">Italian</option>
+                            <option value="pt">Portuguese</option>
+                            <option value="ru">Russian</option>
+                            <option value="ja">Japanese</option>
+                            <option value="zh">Chinese</option>
+                            <option value="ar">Arabic</option>
+                        </select>
+                    </label>
+                    <button class="action secondary" onclick="translateText()">Translate</button>
+                </div>
+                <textarea id="translatedText" placeholder="Translated text will appear here..."></textarea>
+                <div class="output-actions" style="margin-top: 12px;">
+                    <button class="action secondary" onclick="copyTranslation()">Copy Translation</button>
+                    <button class="action secondary" onclick="downloadTranslation()">Save Translation</button>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <footer id="footerStatus">Ready for conversion</footer>
+    <div class="designer-note">Designed by Koduru Kiran Kumar</div>
+</div>
+
+<script>
+let uploadedFile = null;
+
+function updateStatus(message, isError = false) {
+    const status = document.getElementById('status');
+    status.textContent = message;
+    status.style.color = isError ? '#fb7185' : '#22c55e';
+}
+
+function updateFooter(message) {
+    document.getElementById('footerStatus').textContent = message;
+}
+
+function showAim() {
+    alert('Aim:\n\nThis application scans visiting/business cards and extracts text information using OCR. It includes progress updates and contact parsing.');
+}
+
+function showAbout() {
+    alert('About Us:\n\nArtificial Intelligence & Data Science Student\nCoding Enthusiast\nBuilt for professional presentation and easy OCR output management.');
+}
+
+function showContact() {
+    alert('Contact Us:\n\nEmail: yourmail@example.com\nMobile: +91-7995564820\nLinkedIn: linkedin.com/in/yourprofile');
+}
+
+function updateProgress(message) {
+    if (message.status === 'recognizing text') {
+        updateFooter(`OCR progress: ${Math.round(message.progress * 100)}%`);
+    }
+}
+
+function cleanText(text) {
+    return text
+        .replace(/\r\n/g, '\n')
+        .replace(/\n{2,}/g, '\n')
+        .replace(/[ \t]+/g, ' ')
+        .replace(/ *\n */g, '\n')
+        .replace(/\u00A0/g, ' ')
+        .trim();
+}
+
+async function scanCard() {
+    if (!uploadedFile) {
+        updateStatus('Please upload a card image first.', true);
+        return;
+    }
+
+    updateStatus('Preparing image for OCR...');
+    updateFooter('Starting OCR...');
+    document.getElementById('parsedInsights').style.display = 'none';
+
+    try {
+        const language = document.getElementById('languageSelect').value;
+
+        const result = await Tesseract.recognize(uploadedFile, language, {
+            logger: m => updateProgress(m),
+            langPath: 'https://cdn.jsdelivr.net/gh/tesseract-ocr/tessdata@4.0.0'
+        });
+
+        document.getElementById('outputText').value = cleanText(result.data.text);
+
+        updateStatus('OCR completed successfully.');
+        updateFooter('Output generated successfully. Use the parser to extract contact data.');
+    } catch (error) {
+        console.error(error);
+        updateStatus('OCR failed. Please try again or upload a clearer image.', true);
+        updateFooter('OCR error occurred.');
+    }
+}
+
+function downloadText(fileType = 'txt') {
+    const text = document.getElementById('outputText').value;
+    if (text.trim() === '') {
+        alert('No text available.');
+        return;
+    }
+    const baseName = uploadedFile ? uploadedFile.name.split('.')[0] : 'card_output';
+    const extension = fileType === 'doc' ? 'doc' : 'txt';
+    const mimeType = fileType === 'doc' ? 'application/msword' : 'text/plain';
+    const filename = `${baseName}.${extension}`;
+    const blob = new Blob([text], { type: mimeType });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = filename;
+    link.click();
+    updateFooter(`${extension.toUpperCase()} file saved as ${filename}`);
+}
+
+function saveContactInfo() {
+    const parsedVisible = document.getElementById('parsedInsights').style.display === 'grid';
+    if (!parsedVisible) {
+        updateFooter('Parse contact info first before saving.');
+        return;
+    }
+
+    const name = document.getElementById('nameValue').textContent;
+    const phone = document.getElementById('phoneValue').textContent;
+    const email = document.getElementById('emailValue').textContent;
+    const website = document.getElementById('websiteValue').textContent;
+
+    if (name === 'Not found' && phone === 'Not found' && email === 'Not found' && website === 'Not found') {
+        updateFooter('No parsed contact data available to save.');
+        return;
+    }
+
+    const safeName = name !== 'Not found' ? name.replace(/[^a-zA-Z0-9 _-]/g, '').replace(/\s+/g, '_') : 'contact_info';
+    const vcard = `BEGIN:VCARD\nVERSION:3.0\nFN:${name !== 'Not found' ? name : ''}\nORG:${name !== 'Not found' ? name : ''}\nTEL;TYPE=CELL:${phone !== 'Not found' ? phone : ''}\nEMAIL;TYPE=INTERNET:${email !== 'Not found' ? email : ''}\nURL:${website !== 'Not found' ? website : ''}\nEND:VCARD`;
+    const blob = new Blob([vcard], { type: 'text/vcard;charset=utf-8' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `${safeName}_contact.vcf`;
+    link.click();
+    updateFooter(`Contact info saved as ${link.download}`);
+}
+
+function copyText() {
+    const output = document.getElementById('outputText');
+    output.select();
+    navigator.clipboard.writeText(output.value).then(() => {
+        updateFooter('Text copied to clipboard.');
+    }).catch(() => {
+        updateFooter('Unable to copy automatically. Please use Ctrl+C.');
+    });
+}
+
+function clearOutput() {
+    document.getElementById('outputText').value = '';
+    document.getElementById('parsedInsights').style.display = 'none';
+    updateFooter('Output cleared. Ready for a new scan.');
+}
+
+function showInsights() {
+    const text = document.getElementById('outputText').value;
+    if (!text.trim()) {
+        updateFooter('No text available to parse.');
+        return;
+    }
+
+    const phone = text.match(/(\+?\d{1,3}[-.\s]?)?(?:\(?\d{2,4}\)?[-.\s]?)?\d{3,4}[-.\s]?\d{3,4}/g) || [];
+    const email = text.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g) || [];
+    const website = text.match(/(https?:\/\/)?(www\.)?[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}(\/\S*)?/g) || [];
+    const nameGuess = text.split('\n').find(line => line.trim().length > 4) || '';
+
+    document.getElementById('phoneValue').textContent = phone.length ? phone[0] : 'Not found';
+    document.getElementById('emailValue').textContent = email.length ? email[0] : 'Not found';
+    document.getElementById('websiteValue').textContent = website.length ? website[0] : 'Not found';
+    document.getElementById('nameValue').textContent = nameGuess.trim() || 'Not found';
+    document.getElementById('parsedInsights').style.display = 'grid';
+    updateFooter('Contact insights extracted. Review the parsed fields.');
+}
+
+async function translateText() {
+    const sourceText = document.getElementById('outputText').value.trim();
+    const targetLang = document.getElementById('translateLanguage').value;
+
+    if (!sourceText) {
+        updateFooter('Please scan a card first to translate.');
+        return;
+    }
+
+    updateFooter('Translating text...');
+
+    try {
+        const response = await fetch(
+            `https://api.mymemory.translated.net/get?q=${encodeURIComponent(sourceText)}&langpair=en|${targetLang}`
+        );
+        const data = await response.json();
+
+        if (data.responseStatus === 200 && data.responseData.translatedText) {
+            document.getElementById('translatedText').value = data.responseData.translatedText;
+            const langName = document.getElementById('translateLanguage').options[document.getElementById('translateLanguage').selectedIndex].text;
+            updateFooter(`Translation complete. Translated to ${langName}`);
+        } else {
+            updateFooter('Translation failed. Please try again.');
+        }
+    } catch (error) {
+        console.error(error);
+        updateFooter('Translation error. Check your internet connection.');
+    }
+}
+
+function copyTranslation() {
+    const translated = document.getElementById('translatedText');
+    if (!translated.value.trim()) {
+        updateFooter('No translation available to copy.');
+        return;
+    }
+    translated.select();
+    navigator.clipboard.writeText(translated.value).then(() => {
+        updateFooter('Translation copied to clipboard.');
+    }).catch(() => {
+        updateFooter('Unable to copy automatically. Please use Ctrl+C.');
+    });
+}
+
+function downloadTranslation() {
+    const text = document.getElementById('translatedText').value;
+    if (!text.trim()) {
+        updateFooter('No translation available to save.');
+        return;
+    }
+    const lang = document.getElementById('translateLanguage').value;
+    const filename = `card_translation_${lang}.txt`;
+    const blob = new Blob([text], { type: 'text/plain' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = filename;
+    link.click();
+    updateFooter(`Translation saved as ${filename}`);
+}
+
+const fileInput = document.getElementById('fileInput');
+fileInput.addEventListener('change', function(e) {
+    uploadedFile = e.target.files[0];
+    if (uploadedFile) {
+        updateStatus('✓ Card uploaded successfully');
+        document.getElementById('previewImage').src = URL.createObjectURL(uploadedFile);
+        document.getElementById('previewImage').style.display = 'block';
+        updateFooter(`File ready: ${uploadedFile.name}`);
+    }
+});
+
+</script>
+</body>
+</html>
